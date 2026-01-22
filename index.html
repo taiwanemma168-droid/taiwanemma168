@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>展覽便當訂購（四天）</title>
+
+<style>
+body{font-family:Arial;background:#f5f7fb;padding:20px}
+h1{margin:0 0 8px}
+.sub{color:#555;margin-bottom:16px}
+.grid{display:flex;gap:16px;flex-wrap:wrap}
+.box{background:#fff;padding:16px;border-radius:12px;margin-bottom:16px}
+.left{flex:1 1 560px}
+.right{flex:1 1 360px}
+label{font-weight:700;display:block;margin-top:10px}
+input,select,button{width:100%;padding:10px;margin-top:6px;font-size:16px}
+.days{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.dayCard{border:1px solid #ddd;border-radius:8px;padding:8px;background:#fafafa}
+.dayTitle{font-weight:700;margin-bottom:4px}
+.btn{background:#2563eb;color:#fff;border:none;border-radius:10px;cursor:pointer;margin-top:12px}
+.btn:hover{filter:brightness(.95)}
+.btn-danger{background:#dc2626}
+.btn-danger:hover{background:#b91c1c}
+.ordersWrap{display:flex;flex-direction:column;gap:10px}
+.orderItem{border:1px solid #ddd;border-radius:10px;padding:10px}
+.orderName{font-weight:800;margin-bottom:6px}
+.orderDays{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pill{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px}
+.meat{background:#fee2e2;color:#991b1b}
+.vege{background:#dcfce7;color:#166534}
+.none{background:#e5e7eb;color:#374151}
+.statCard{background:#eff6ff;border-radius:12px;padding:12px;margin-bottom:10px}
+.statTitle{font-weight:900;display:flex;justify-content:space-between}
+.big{font-size:22px;font-weight:900;color:#2563eb}
+</style>
+</head>
+
+<body>
+<h1>🍱 展覽便當訂購（四天）</h1>
+<p class="sub">填一次，可重填覆蓋；右側即時統計</p>
+
+<div class="grid">
+<!-- 左 -->
+<div class="left">
+
+<div class="box">
+<h3>填寫 / 修改（直接覆蓋）</h3>
+<label>姓名（請填真實姓名）</label>
+<input id="name">
+
+<label>四天便當選擇</label>
+<div class="days">
+<div class="dayCard"><div class="dayTitle">第一天</div><select id="d1"><option>不吃</option><option>葷</option><option>素</option></select></div>
+<div class="dayCard"><div class="dayTitle">第二天</div><select id="d2"><option>不吃</option><option>葷</option><option>素</option></select></div>
+<div class="dayCard"><div class="dayTitle">第三天</div><select id="d3"><option>不吃</option><option>葷</option><option>素</option></select></div>
+<div class="dayCard"><div class="dayTitle">第四天</div><select id="d4"><option>不吃</option><option>葷</option><option>素</option></select></div>
+</div>
+
+<button class="btn" onclick="save()">送出 / 更新</button>
+</div>
+
+<div class="box">
+<h3>訂購清單</h3>
+<div id="orders" class="ordersWrap"></div>
+<button class="btn btn-danger" onclick="resetAll()">重新整理（清空）</button>
+</div>
+
+</div>
+
+<!-- 右 -->
+<div class="right">
+<div class="box">
+<h3>每日統計</h3>
+<div id="stats"></div>
+</div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+<script>
+firebase.initializeApp({
+ apiKey:"AIzaSyBtotjASKJZe6EU4nHd1lug3-E5p1-bpwM",
+ authDomain:"bento-order-4899c.firebaseapp.com",
+ projectId:"bento-order-4899c"
+});
+const db=firebase.firestore();
+
+function pill(v){
+ return `<span class="pill ${v==='葷'?'meat':v==='素'?'vege':'none'}">${v}</span>`;
+}
+
+async function save(){
+ const name=nameEl.value.trim();
+ if(!name){alert('請輸入姓名');return;}
+ await db.collection('orders').doc(name).set({
+  name,
+  days:{d1:d1.value,d2:d2.value,d3:d3.value,d4:d4.value},
+  time:new Date()
+ });
+ alert('已送出（可再填覆蓋）');
+}
+
+async function resetAll(){
+ if(!confirm('確定清空所有資料？'))return;
+ const snap=await db.collection('orders').get();
+ const batch=db.batch();
+ snap.forEach(d=>batch.delete(d.ref));
+ await batch.commit();
+}
+
+db.collection('orders').orderBy('time').onSnapshot(s=>{
+ orders.innerHTML='';
+ stats.innerHTML='';
+ const day=['d1','d2','d3','d4'];
+ const name=['第一天','第二天','第三天','第四天'];
+ const cnt={d1:{m:0,v:0},d2:{m:0,v:0},d3:{m:0,v:0},d4:{m:0,v:0}};
+ s.forEach(d=>{
+  const x=d.data();
+  orders.innerHTML+=`
+  <div class="orderItem">
+   <div class="orderName">${x.name}</div>
+   <div class="orderDays">${day.map(k=>pill(x.days[k])).join('')}</div>
+  </div>`;
+  day.forEach(k=>{
+   if(x.days[k]==='葷')cnt[k].m++;
+   if(x.days[k]==='素')cnt[k].v++;
+  });
+ });
+ day.forEach((k,i)=>{
+  stats.innerHTML+=`
+  <div class="statCard">
+   <div class="statTitle">${name[i]}<span class="big">${cnt[k].m+cnt[k].v}</span></div>
+   葷：${cnt[k].m}｜素：${cnt[k].v}
+  </div>`;
+ });
+});
+</script>
+</body>
+</html>
